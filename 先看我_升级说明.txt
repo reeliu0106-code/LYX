@@ -1,0 +1,14 @@
+Literature Search Workbench v0.2
+
+双击：一键启动_Windows_v0.2.bat
+网址：http://127.0.0.1:8501
+第一次出现 Email: 直接回车。
+
+1) 先选 Preview first 100，检查关键词和文献结果。
+2) 然后选 Fetch ALL matching PubMed records，等待绿色 COMPLETE。
+3) 点击 Prepare Covidence ZIP，然后下载 ZIP 并解压。
+4) 将 covidence_pubmed_part_001.ris、002.ris 等逐个导入 Covidence。
+
+中断后：同样的关键词和年份再点 Fetch ALL（不要勾 Start fresh），可续跑完成的日期批次。
+务必保留黑色命令窗口。不要把 .venv_compatible 和 .workbench_runs 上传 GitHub。
+详细阅读 使用说明_中文.md。

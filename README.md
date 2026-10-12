@@ -1,67 +1,66 @@
-# Literature Search Workbench (PubMed MVP)
+# Literature Search Workbench v0.2
 
-A small, open-source Streamlit application for **reproducible literature searches on PubMed**. Search a PubMed Boolean expression, retrieve bibliographic metadata and available abstracts, review records, and export CSV, RIS (for Zotero/EndNote), and a JSON search log.
+A Python + Streamlit research utility built on the existing v0.1 PubMed workbench.
+It searches **PubMed** and creates multiple **Covidence-compatible RIS** files plus a CSV and JSON audit log. This is a **research prototype**, not a replacement for Covidence or a comprehensive cross-database search system.
 
-> **Scope:** This searches only PubMed; it does not search every academic database or perform eligibility screening. PubMed ESearch is limited to the first **10,000** matching records per query. For large searches, split searches into smaller publication-year ranges and combine/de-duplicate exports. Retrieving article metadata is not the same as obtaining publisher PDFs.
+## What changed from v0.1
 
-## Run locally
+- **Preview first 100** records for fast smoke tests.
+- **Fetch ALL matching PubMed records** across publication years using recursively split, inclusive publication-date windows until each contains ≤9,000 records (below PubMed's 10,000 ESearch cap).
+- 200-record EFetch batches; HTTPS retries and NCBI-compatible request throttling.
+- SQLite checkpoints **per completed date window**; restart the app, repeat the same query/years, and continue instead of downloading completed windows again.
+- Dedupe on PMID and reconcile **(1) count of subwindows, (2) distinct retrieved PMIDs, and (3) initial full-search count** before marking a run complete.
+- Export a ZIP containing `.ris` parts sized **≤15,000 citations, ≤49 MB each**, plus `pubmed_records.csv`, `search_audit.json`, and Covidence upload directions. RIS includes available title, ordered authors, journal, year, volume, issue, pages, abstract, DOI, PMID, and URL.
 
-1. Install Python 3.11 or 3.12.
-2. Open a terminal in the project folder.
-3. Install dependencies:
+## Windows startup
 
-   ```bash
-   python -m pip install -r requirements.txt
-   ```
+1. Install **64-bit Python 3.12** if you do not have 3.11/3.12/3.13 64-bit installed. Python 3.14 may cause pandas to build from source, so the Windows script deliberately chooses a compatible version.
+2. Unzip the release. Double-click **`一键启动_Windows_v0.2.bat`** inside the project folder.
+3. On first Streamlit launch, if a terminal asks `Email:`, **press Enter** to skip.
+4. The website should open at **http://127.0.0.1:8501**; keep the command prompt window open.
+5. Choose **Preview first 100** to verify the query, then **Fetch ALL matching PubMed records**. For a test use `CORDIOPREV` for 2020–2026 before starting a large search.
+6. When marked **COMPLETE**, choose **Prepare Covidence ZIP**, then click the ZIP download button.
+7. **Extract** the ZIP; import each numbered `.ris` individually via Covidence Review > **Import Studies** (source `PubMed`, appropriate screening stage). Check import history for deduplication.
 
-4. Start the web interface:
+Important: With a very broad query like `T2DM` (40,000+ hits), the full download can take **minutes or longer** depending on PubMed and local network conditions. You can interrupt; completed date windows are saved locally.
 
-   ```bash
-   python -m streamlit run app.py
-   ```
+## Platform-independent startup
 
-5. Your browser should open at `http://localhost:8501`.
+```bash
+python -m pip install -r requirements.txt
+python -m streamlit run app.py
+```
 
-Optional: Configure `NCBI_EMAIL` (your contact email) and `NCBI_API_KEY` as **environment variables**. Never commit an API key to GitHub. A key is not required for ordinary, low-rate usage. The application throttles EFetch requests to below three per second.
+You can use `Start_Mac_Linux.sh` on Unix. Python 3.11–3.13 64-bit recommended.
 
-## Usage
-
-1. Enter keywords or an advanced PubMed expression, such as `("adolescent obesity"[Title/Abstract]) AND intervention[Title/Abstract]`.
-2. Choose publication years and maximum result count, then click **Search PubMed**.
-3. Check PubMed matches vs. downloaded records; choose 10,000 if all matches fit within that limit.
-4. Download `pubmed_results.csv`, `pubmed_results.ris` (Zotero/EndNote), and `search_log.json` (database, query translation, date, result count).
-
-Some PubMed records have no abstract or DOI. Those fields may be empty.
-
-## Publish to GitHub + deploy
-
-1. Create a **new GitHub repository** (e.g. `literature-search-workbench`).
-2. Upload the **contents of this folder** to it (not only the ZIP file): `app.py`, `pubmed.py`, `requirements.txt`, `README.md`, `LICENSE`, `.gitignore`, `.streamlit/`, and `tests/`.
-3. Go to [Streamlit Community Cloud](https://share.streamlit.io/) and sign in using GitHub.
-4. Click **Create app** → select your repository, `main` branch, and `app.py` entrypoint → Deploy.
-5. Share both your GitHub source-code URL and the `*.streamlit.app` URL.
-
-A GitHub repository hosts your **source code**; deploying to Streamlit Community Cloud gives your collaborator a **browser-based tool**. Python must be run locally to use the un-deployed app.
-
-## Developer test
+## Tests
 
 ```bash
 python -m pip install pytest
 python -m pytest -q
 ```
 
-The tests exercise parser and export functions using sample XML. Live PubMed retrieval requires network connectivity and is not covered by unit tests.
+Unit/integration-style tests use fake PubMed responses: date splitting, completeness failures, simulated 12,000-record retrieval, checkpoint/resume, XML metadata extraction, RIS formatting, and ZIP splitting. **The tests do not contact PubMed and do not prove a successful live Covidence import**; test a small real import in Covidence before relying on the tool for a review.
 
-## Next steps
+## Caveats & research integrity
 
-- Add Europe PMC, OpenAlex, Crossref, or other API-based coverage (each has different search semantics).
-- Deduplicate results by PMID, normalized DOI, and title; preserve source provenance.
-- Implement search-history persistence, team tags and manual include/exclude screening.
-- Add date-sliced searches for PubMed queries exceeding 10,000 records.
-- Add Zotero synchronization if the team requires it, with explicit authorization.
+- **Publication-date disjointness:** PubMed's date indexing can include incomplete publication dates or change during an active search. Some unusual records (such as PubmedBookArticle) may not map to the current citation parser. If windows do not reconcile or an unpartitionable single day exceeds 9,000, the software **stops with an explicit INCOMPLETE warning**. Do not interpret a partial ZIP as a complete search.
+- **Live database:** Result sets are *not a transactional snapshot*. Final count equality is a strong programmatic check but cannot prove the database did not change during a run. Document search times, query, and any deviations for systematic reviews.
+- This project only searches **PubMed**. Covidence supports RIS imports and performs eligibility screening/deduplication. There is **no direct Covidence API synchronization**.
+- Local SQLite checkpoint directory is `.workbench_runs/`, which is excluded from Git. **Streamlit Community Cloud disk is ephemeral and not a safe long-running/resumable job store**; for large jobs, use the local Windows version, or upgrade to a proper background queue with durable cloud storage.
+- A public Streamlit deployment has no per-user authentication/isolation in this app. Do not use it for confidential project searches without implementing authentication and separate storage.
+- Do **not** commit article abstracts, downloaded CSV/RIS/ZIP data, `.env` secrets, or API keys to a public repo. Some PubMed abstracts have copyright restrictions.
 
-## Data and copyright
+Optional NCBI environment variables: `NCBI_EMAIL`, `NCBI_API_KEY` (not required for moderate use). Respect NCBI usage rules.
 
-Powered by the [NCBI E-utilities](https://www.ncbi.nlm.nih.gov/books/NBK25497/). NCBI does not endorse this app. PubMed abstracts may be copyrighted and must be handled in accordance with applicable rights and the [NCBI disclaimer](https://www.ncbi.nlm.nih.gov/About/disclaimer.html). Do not publish exported article abstracts to the project's GitHub repository.
+## Deploying Streamlit (light usage)
 
-MIT license applies only to the source code, not third-party literature content.
+Upload only the source code, `requirements.txt`, `.streamlit/config.toml`, `.gitignore`, tests and documentation to GitHub. Deploy the `main` branch and `app.py` from https://share.streamlit.io/ . For tens of thousands of records, **run the full job locally** due to service timeouts/resource limits and ephemeral storage.
+
+## Documentation
+
+- NCBI E-utilities: https://www.ncbi.nlm.nih.gov/books/NBK25499/
+- PubMed date filters: https://pubmed.ncbi.nlm.nih.gov/help/
+- Covidence RIS import: https://support.covidence.org/help/study-imports
+
+MIT license applies to source code only, not PubMed/publisher content. No affiliation with or endorsement from NCBI/Covidence.
